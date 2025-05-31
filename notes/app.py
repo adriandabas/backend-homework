@@ -5,11 +5,12 @@ from flask import request
 from flask import render_template
 from flask import redirect
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.sql import text
+from flask_socketio import SocketIO # pour la synchronisation entre navigateurs
+
 
 ##### Usual flask initialization #####
 app = Flask(__name__)
-
+socketio = SocketIO(app)
 
 ##### Database declaration #####
 db_name = 'notes.db'   # filename where to store stuff (sqlite is file-based)
@@ -78,14 +79,21 @@ http :5001/api/notes/<id>/done
 @app.route('/api/notes/<id>/done', methods=['POST'])
 def new_status(id):
     try: 
-        note = Note.query.get(id)   # on récupère la note par son id
-        
+        # On récupère la note par son id
+        note = Note.query.get(id)   
+        # On récupère le nouveau statut
         data = request.get_json()   
-        new_status = data.get('done')   # on récupère le nouveau statut
-        
-        note.done = bool(new_status)    # on met à jour l'état de la note
+        new_status = data.get('done')
+        print(f"Nouveau statut de la note {id}:", new_status)
+        # On met à jour l'état de la note
+        note.done = bool(new_status) 
         db.session.commit()             # comme sur git !
-        return data
+
+        # Synchronisation en temps réel sur tous les navigateurs
+        # Le serveur émet un évènement quand une note est updatée
+        socketio.emit('note-updated', {'id': note.id, 'done': note.done})
+
+        return dict(ok=True, id=note.id, done=note.done)
     except Exception as exc:    # on utilise try et except pour ne pas faire crasher l'api si une des commandes au-dessus n'est pas réalisable (id n'existe pas, etc)
         return dict(error=f"{type(exc)}: {exc}"), 422  
 
@@ -107,3 +115,12 @@ def front_notes():
                     status=req.status_code, text=req.text)
     notes = req.json()
     return render_template('notes.html.j2', notes=notes)  # permet d'accéder à la variable notes dans le template/html
+
+# Débug : on vérifie si le serveur SocketIo est bien connecté
+@socketio.on('connect')
+def test_connect():
+    print('Client connecté')
+
+
+if __name__ == '__main__':
+    socketio.run(app)

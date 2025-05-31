@@ -3,8 +3,19 @@ document.addEventListener(
   // once the page is loaded
   () => {
     console.log("DOMContentLoaded")
-    document
-      .querySelectorAll(".note>form>input")
+
+    // Connexion du client à SocketIo
+    const socket = io();
+    // Réception de l'évènement côté client
+    socket.on('note-updated', function(data) {
+        console.log('Note updated event received:', data);
+        const checkbox = document.querySelector(`input[data-id="${data.id}"]`);
+        if (checkbox) {
+            checkbox.checked = data.done;
+        }
+    })
+
+    document.querySelectorAll(".note>form>input")
       // on every input element inside the form inside the note class
       .forEach((element) => {
         // how to react on its change event
@@ -31,3 +42,4 @@ document.addEventListener(
       })
   },
 )
+
